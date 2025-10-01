@@ -43,14 +43,29 @@ if(!INTER_CLIENT_ID || !INTER_CLIENT_SECRET || !INTER_PFX_BASE64 || !INTER_PFX_P
   console.error('❌ Variáveis de ambiente faltando. Confira INTER_* e URLs.');
 }
 
-// Monta httpsAgent com PFX direto (sem conversão)
-const pfxBuffer = Buffer.from(INTER_PFX_BASE64 || '', 'base64');
-const httpsAgent = new https.Agent({
-  pfx: pfxBuffer,
-  passphrase: INTER_PFX_PASSWORD,
-  keepAlive: true,
-  rejectUnauthorized: true,
-});
+// === HTTPS agent (mTLS): preferir PEM (cert/key), fallback para PFX
+function makeAgent() {
+  if (process.env.INTER_CERT_BASE64 && process.env.INTER_KEY_BASE64) {
+    return new https.Agent({
+      cert: Buffer.from(process.env.INTER_CERT_BASE64, 'base64'),
+      key: Buffer.from(process.env.INTER_KEY_BASE64, 'base64'),
+      passphrase: process.env.INTER_PFX_PASSWORD || undefined, // só se a key tiver senha
+      keepAlive: true,
+      rejectUnauthorized: true,
+    });
+  }
+  const pfx = process.env.INTER_PFX_BASE64
+    ? Buffer.from(process.env.INTER_PFX_BASE64, 'base64')
+    : undefined;
+
+  return new https.Agent({
+    pfx,
+    passphrase: process.env.INTER_PFX_PASSWORD,
+    keepAlive: true,
+    rejectUnauthorized: true,
+  });
+}
+const httpsAgent = makeAgent();
 
 // Cache simples do token em memória
 let cachedToken = null;
